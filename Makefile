@@ -71,6 +71,12 @@ run: build
 	$(EXEC) ./main
 
 clean:
-	rm -f main main.o render.o
+	rm -f main main.o render.o sort sort.o
 
 clobber: clean
+
+sort: sort.o
+	$(EXEC) $(NVCC) -g -G -Wno-deprecated-gpu-targets $(ALL_LDFLAGS) $(GENCODE_FLAGS) -o $@ $^ $(LIBRARIES)
+
+sort.o: sort.cu
+	$(EXEC) $(NVCC) -g -G -Wno-deprecated-gpu-targets $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<

@@ -1,2 +1,6 @@
 simpleGL
 simpleGL.o
+main
+sort
+*.o
+a.txt
