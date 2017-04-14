@@ -1,0 +1,23 @@
+try - all instances of same template in one IBO
+	- instance rendering https://learnopengl.com/#!Advanced-OpenGL/Instancing
+
+try shading a few pixels of different color 
+use shader to color all objects
+
+handle negative xyz while calculating cellid
+
+find initial location - initial locaiton within -2 ,2 
+
+redundant cellIDs possible in array currently
+
+add simple rebound to display (run_vbo_kernel)
+reduce divergence in run_vbo_kernel
+use thrust vectors whereever posssible
+
+scale down object sizes and increase x y and z range
+read one object and parallely find maximum diameter 
+search about dynamic parallelism for finding phantom cell locations and support calculation in gjk
+
+
+use thrust vector for simplex pts
+https://www.ntu.edu.sg/home/ehchua/programming/opengl/CG_BasicsTheory.html
