@@ -132,7 +132,7 @@ void launch_kernel_phase_2(int* d_cellID, int * d_objectID, int size, int pass, 
 }
 
 
-void __global__ phase_3_kernel(int *d_cellID, int *d_objectID, int size, int partition_size, int Num_Elements_Per_Group, int pass, int * d_counters, int* d_partial_prefix_sums_per_radix, int * d_sorted_cellID, int* d_sorted_objectID, unsigned int* d_counter){
+void __global__ phase_3_kernel(int *d_cellID, int *d_objectID, int size, int partition_size, int Num_Elements_Per_Group, int pass, int * d_counters, int* d_partial_prefix_sums_per_radix, int * d_sorted_cellID, int* d_sorted_objectID){
 
 	__shared__ int shared_parallel_prefix[NUM_RADICES];
 	__shared__ int shared_counters[NUMBER_OF_GROUPS_PER_BLOCK][NUM_RADICES];
@@ -170,7 +170,6 @@ void __global__ phase_3_kernel(int *d_cellID, int *d_objectID, int size, int par
 			shared_counters[threadIdx.x/R][i] = d_counters[getAddress(i,blockIdx.x,threadIdx.x/R)];
 			if(i>0)
 				shared_counters[threadIdx.x/R][i] += shared_parallel_prefix[i];
-				// shared_counters[threadIdx.x/R][i] += shared_parallel_prefix[i - 1];
 		}
 	}
 	__syncthreads();
@@ -182,37 +181,29 @@ void __global__ phase_3_kernel(int *d_cellID, int *d_objectID, int size, int par
 	mask = mask << (pass*L);
 	for (int i = firstCellID; i < firstCellID + R*partition_size; i+=R)
 	{
-		atomicInc(d_counter, INT_MAX);
 		unsigned int masked_number = d_cellID[i] & (mask);
 		masked_number = masked_number >> (L*pass);
-		
-		// 0 0 0 0 0 -1 0 0
-		// 0 0 1 0 1 -1 0 1
-
 		int address_to_update = atomicInc((unsigned int*)&shared_counters[threadIdx.x/R][masked_number], INT_MAX);
-		// printf("%d\n",address_to_update);
-		int previous_value = d_sorted_cellID[address_to_update];
-		// if(address_to_update != ARRAY_SIZE) //TODO: Remove this if condition by fixing the math
-			d_sorted_cellID[address_to_update] = d_sorted_cellID[address_to_update] + (masked_number << (L*pass));
-		int new_value = d_sorted_cellID[address_to_update];
-		printf("%d %d %d %d %d %d %d %d\n",blockIdx.x,threadIdx.x/R, threadIdx.x%R, address_to_update, d_cellID[i], previous_value, new_value, masked_number << L*pass);
-
-		masked_number = d_objectID[i] & (mask);
-		masked_number = masked_number >> (L*pass);
-		// if(address_to_update != ARRAY_SIZE) //TODO: Remove this if condition by fixing the math
-			d_sorted_objectID[address_to_update] = d_sorted_objectID[address_to_update] + (masked_number << (L*pass)); 
-		
+		d_sorted_cellID[address_to_update] = d_cellID[i];
+		d_sorted_objectID[address_to_update] = d_objectID[i];
 	}
 
 }
 
-void launch_kernel_phase_3(int* d_cellID, int * d_objectID, int size, int pass, int* d_counters, int *d_partial_prefix_sums_per_radix, int * d_sorted_cellID, int* d_sorted_objectID, unsigned int *d_counter){
+void launch_kernel_phase_3(int* d_cellID, int * d_objectID, int size, int pass, int* d_counters, int *d_partial_prefix_sums_per_radix, int * d_sorted_cellID, int* d_sorted_objectID){
     //keep launch config of all kernels same
 	dim3 grid(ceil((float)size/BLOCK_DIM_SORT));
 	dim3 block(BLOCK_DIM_SORT,1);
 	int partition_size = ceil((float)size/MAX_GRID_SIZE);
 	int Num_Elements_Per_Group = R*partition_size;
-	phase_3_kernel <<<grid, block>>>(d_cellID, d_objectID, size, partition_size, Num_Elements_Per_Group, pass, d_counters, d_partial_prefix_sums_per_radix,d_sorted_cellID, d_sorted_objectID, d_counter);
+	phase_3_kernel <<<grid, block>>>(d_cellID, d_objectID, size, partition_size, Num_Elements_Per_Group, pass, d_counters, d_partial_prefix_sums_per_radix,d_sorted_cellID, d_sorted_objectID);
+}
+
+void swap_pointers(int **p1, int **p2){
+	int *t;
+	t = *p1;
+	*p1 = *p2;
+	*p2 = t;
 }
 
 void sort(int *d_cellID, int *d_objectID){
@@ -228,7 +219,8 @@ void sort(int *d_cellID, int *d_objectID){
 	int *d_sorted_objectID;
 	checkCudaErrors(cudaMalloc(&d_sorted_objectID, ARRAY_SIZE*sizeof(int)));
 	checkCudaErrors(cudaMemset(d_sorted_objectID, 0, ARRAY_SIZE*sizeof(int)));
-	for(int i = 0; i < 1 ; i++)
+	int MAX_PASSES = 4;
+	for(int i = 0; i < MAX_PASSES ; i++)
 	{	
 		printf("Pass %d\n", i);
 		checkCudaErrors(cudaMemset(d_counters, 0, NUM_RADICES * NUM_BLOCKS * NUMBER_OF_GROUPS_PER_BLOCK * sizeof(int)  ));
@@ -254,8 +246,8 @@ void sort(int *d_cellID, int *d_objectID){
 		int *h_d_partial_prefix_sums_per_radix;
 		h_d_partial_prefix_sums_per_radix = (int*) malloc(sizeof(int) * NUM_RADICES);
 		checkCudaErrors(cudaMemcpy(h_d_partial_prefix_sums_per_radix, d_partial_prefix_sums_per_radix, sizeof(int) * NUM_RADICES, cudaMemcpyDeviceToHost));
-		for (int l = 0; l < NUM_RADICES; ++l)
-			printf("Radix %d: %d\n", l,h_d_partial_prefix_sums_per_radix[l]);
+		// for (int l = 0; l < NUM_RADICES; ++l)
+		// 	printf("Radix %d: %d\n", l,h_d_partial_prefix_sums_per_radix[l]);
 
 		// int *h_d_counters;
 		h_d_counters = (int *) malloc(NUM_RADICES * NUM_BLOCKS * NUMBER_OF_GROUPS_PER_BLOCK * sizeof(int));
@@ -272,64 +264,61 @@ void sort(int *d_cellID, int *d_objectID){
 	    //     printf("\n\n");
 	    // }
 
-		unsigned int* d_counter; cudaMalloc(&d_counter, sizeof(unsigned int)); checkCudaErrors(cudaMemset(d_counter, 0, sizeof(unsigned int)));
-		launch_kernel_phase_3(d_cellID, d_objectID, ARRAY_SIZE, i, d_counters, d_partial_prefix_sums_per_radix, d_sorted_cellID, d_sorted_objectID, d_counter);
-		checkCudaErrors(cudaDeviceSynchronize());
-		int *h_counter; h_counter = (int*) malloc(sizeof(unsigned int)); 
-		checkCudaErrors(cudaMemcpy(h_counter, d_counter, sizeof(unsigned int), cudaMemcpyDeviceToHost)); printf("Counter: %d\n", *h_counter);
-	
+		launch_kernel_phase_3(d_cellID, d_objectID, ARRAY_SIZE, i, d_counters, d_partial_prefix_sums_per_radix, d_sorted_cellID, d_sorted_objectID);
+		
+		if(i != MAX_PASSES - 1){
+			swap_pointers(&d_sorted_cellID, &d_cellID);
+			swap_pointers(&d_sorted_objectID, &d_objectID);
+		}
 	}
 
 	int* h_d_sorted_cellID;
 	h_d_sorted_cellID = (int *)malloc( ARRAY_SIZE* sizeof(int));
 	checkCudaErrors(cudaMemcpy(h_d_sorted_cellID, d_sorted_cellID, ARRAY_SIZE*sizeof(int), cudaMemcpyDeviceToHost));
-	printf("Sorted Array\n");
-	for (int i = 0; i < ARRAY_SIZE; ++i)
-	{
-		printf("%d ", h_d_sorted_cellID[i]);
-	}
-	printf("\n");
+	// printf("Sorted Array\n");
+	// for (int i = 0; i < ARRAY_SIZE; ++i)
+	// {
+	// 	printf("%d ", h_d_sorted_cellID[i]);
+	// }
+	// printf("\n");
 	int* h_d_sorted_objectID;
 	h_d_sorted_objectID = (int *)malloc( ARRAY_SIZE* sizeof(int));
 	checkCudaErrors(cudaMemcpy(h_d_sorted_objectID, d_sorted_objectID, ARRAY_SIZE*sizeof(int), cudaMemcpyDeviceToHost));
 
-	// printf("\n");
-	//printf("Sorted Array\n");
-	//for (int i = 0; i < ARRAY_SIZE; ++i)
-	//{
-	//	printf("(%d, %d), ",h_d_sorted_cellID[i], h_d_sorted_objectID[i]);
-	//}
+	printf("\n");
+	printf("Sorted Array\n");
+	for (int i = 0; i < ARRAY_SIZE; ++i)
+	{
+		printf("(%d, %d), ",h_d_sorted_cellID[i], h_d_sorted_objectID[i]);
+	}
 
 	checkCudaErrors(cudaFree(d_sorted_cellID));
 	checkCudaErrors(cudaFree(d_sorted_objectID));
 	checkCudaErrors(cudaFree(d_counters));
 
-	
-
-
 }
 
-int main(int argc, char const *argv[])
-{
-	cudaSetDevice(0);
-	srand(time(NULL));
-	int *cellID = (int*) malloc(ARRAY_SIZE*sizeof(int));
-	int *objectID = (int*) malloc(ARRAY_SIZE*sizeof(int));
-	for (int i = 0; i < ARRAY_SIZE; ++i)
-	{
-		cellID[i] = i;
-		objectID[i] = i;
-	}
-	int * d_cellID, *d_objectID;
-	checkCudaErrors(cudaMalloc(&d_cellID, ARRAY_SIZE*sizeof(int)));
-	checkCudaErrors(cudaMalloc(&d_objectID, ARRAY_SIZE*sizeof(int)));
-	checkCudaErrors(cudaMemcpy(d_cellID, cellID, ARRAY_SIZE*sizeof(int),cudaMemcpyHostToDevice));
-	checkCudaErrors(cudaMemcpy(d_objectID, objectID, ARRAY_SIZE*sizeof(int), cudaMemcpyHostToDevice));
-	sort(d_cellID, d_objectID);
-	// for (int i = 0; i < ARRAY_SIZE; ++i)
-	// {
-	// 	cellID[i] = i;
-	// 	objectID[i] = ARRAY_SIZE - i;
-	// }
-	return 0;
-}
+// int main(int argc, char const *argv[])
+// {
+// 	// cudaSetDevice(0);
+// 	srand(time(NULL));
+// 	int *cellID = (int*) malloc(ARRAY_SIZE*sizeof(int));
+// 	int *objectID = (int*) malloc(ARRAY_SIZE*sizeof(int));
+// 	for (int i = 0; i < ARRAY_SIZE; ++i)
+// 	{
+// 		cellID[i] = i;
+// 		objectID[i] = i;
+// 	}
+// 	int * d_cellID, *d_objectID;
+// 	checkCudaErrors(cudaMalloc(&d_cellID, ARRAY_SIZE*sizeof(int)));
+// 	checkCudaErrors(cudaMalloc(&d_objectID, ARRAY_SIZE*sizeof(int)));
+// 	checkCudaErrors(cudaMemcpy(d_cellID, cellID, ARRAY_SIZE*sizeof(int),cudaMemcpyHostToDevice));
+// 	checkCudaErrors(cudaMemcpy(d_objectID, objectID, ARRAY_SIZE*sizeof(int), cudaMemcpyHostToDevice));
+// 	sort(d_cellID, d_objectID);
+// 	// for (int i = 0; i < ARRAY_SIZE; ++i)
+// 	// {
+// 	// 	cellID[i] = i;
+// 	// 	objectID[i] = ARRAY_SIZE - i;
+// 	// }
+// 	return 0;
+// }
