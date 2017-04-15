@@ -43,7 +43,7 @@ void __global__ phase_1_kernel(int *d_cellID, int *d_objectID, int size, int par
 	int firstCellID =(blockIdx.x*NUMBER_OF_GROUPS_PER_BLOCK + threadIdx.x/R)*Num_Elements_Per_Group + threadIdx.x%R;
 	unsigned int mask = 0;
 	for (int i = 0; i < L; ++i)
-		mask = mask<<1 | 1;
+		mask = (mask<<1) | 1;
 	mask = mask << (pass*L);
 	for (int i = firstCellID; i < firstCellID + R*partition_size; i+=R)
 	{
@@ -86,13 +86,16 @@ void __global__ phase_2_kernel(int *d_cellID, int *d_objectID, int size, int par
 	}
 	__syncthreads();
 
+	int last_value = 0;
 	if(threadIdx.x <= highestRadixForBlock - lowestRadixForBlock)
 	{
 		int i = threadIdx.x + lowestRadixForBlock;
-		for (int j = 0; j < NUM_GROUPS; ++j)
+		for (int j = 0; j < NUM_GROUPS - 1; ++j)
 		{
-			shared_counters[i - lowestRadixForBlock][j] = d_counters[getAddress(i,j/NUMBER_OF_GROUPS_PER_BLOCK, j%NUMBER_OF_GROUPS_PER_BLOCK)];
+			shared_counters[i - lowestRadixForBlock][j + 1] = d_counters[getAddress(i,j/NUMBER_OF_GROUPS_PER_BLOCK, j%NUMBER_OF_GROUPS_PER_BLOCK)];
 		}	
+		int j = NUM_GROUPS - 1;
+		last_value = d_counters[getAddress(i,j/NUMBER_OF_GROUPS_PER_BLOCK, j%NUMBER_OF_GROUPS_PER_BLOCK)];
 	}
 	__syncthreads();
 
@@ -113,7 +116,7 @@ void __global__ phase_2_kernel(int *d_cellID, int *d_objectID, int size, int par
 		{
 			d_counters[getAddress(i,j/NUMBER_OF_GROUPS_PER_BLOCK, j%NUMBER_OF_GROUPS_PER_BLOCK)] = shared_counters[i - lowestRadixForBlock][j];
 		}
-		d_partial_prefix_sums_per_radix[i] = shared_counters[i - lowestRadixForBlock][NUM_GROUPS-1];
+		d_partial_prefix_sums_per_radix[i] = shared_counters[i - lowestRadixForBlock][NUM_GROUPS-1] + last_value;
 	}
 
 
@@ -144,9 +147,10 @@ void __global__ phase_3_kernel(int *d_cellID, int *d_objectID, int size, int par
 
 	if(threadIdx.x == 0)
 	{
-		for (int i = 0; i < NUM_RADICES; ++i)
+		shared_parallel_prefix[0] = 0;
+		for (int i = 0; i < NUM_RADICES - 1; ++i)
 		{
-			shared_parallel_prefix[i] = d_partial_prefix_sums_per_radix[i];
+			shared_parallel_prefix[i+1] = d_partial_prefix_sums_per_radix[i];
 		}
 
 	}
@@ -165,7 +169,8 @@ void __global__ phase_3_kernel(int *d_cellID, int *d_objectID, int size, int par
 		{
 			shared_counters[threadIdx.x/R][i] = d_counters[getAddress(i,blockIdx.x,threadIdx.x/R)];
 			if(i>0)
-				shared_counters[threadIdx.x/R][i] += shared_parallel_prefix[i-1];
+				shared_counters[threadIdx.x/R][i] += shared_parallel_prefix[i];
+				// shared_counters[threadIdx.x/R][i] += shared_parallel_prefix[i - 1];
 		}
 	}
 	__syncthreads();
@@ -181,15 +186,21 @@ void __global__ phase_3_kernel(int *d_cellID, int *d_objectID, int size, int par
 		unsigned int masked_number = d_cellID[i] & (mask);
 		masked_number = masked_number >> (L*pass);
 		
+		// 0 0 0 0 0 -1 0 0
+		// 0 0 1 0 1 -1 0 1
+
 		int address_to_update = atomicInc((unsigned int*)&shared_counters[threadIdx.x/R][masked_number], INT_MAX);
 		// printf("%d\n",address_to_update);
-		// printf("%d %d %d %d %d\n",blockIdx.x,threadIdx.x/R, threadIdx.x%R, address_to_update, d_cellID[i]);
+		int previous_value = d_sorted_cellID[address_to_update];
 		// if(address_to_update != ARRAY_SIZE) //TODO: Remove this if condition by fixing the math
-			d_sorted_cellID[address_to_update] += masked_number << L*pass;
+			d_sorted_cellID[address_to_update] = d_sorted_cellID[address_to_update] + (masked_number << (L*pass));
+		int new_value = d_sorted_cellID[address_to_update];
+		printf("%d %d %d %d %d %d %d %d\n",blockIdx.x,threadIdx.x/R, threadIdx.x%R, address_to_update, d_cellID[i], previous_value, new_value, masked_number << L*pass);
+
 		masked_number = d_objectID[i] & (mask);
 		masked_number = masked_number >> (L*pass);
 		// if(address_to_update != ARRAY_SIZE) //TODO: Remove this if condition by fixing the math
-			d_sorted_objectID[address_to_update] += masked_number << L*pass; 
+			d_sorted_objectID[address_to_update] = d_sorted_objectID[address_to_update] + (masked_number << (L*pass)); 
 		
 	}
 
@@ -213,7 +224,7 @@ void sort(int *d_cellID, int *d_objectID){
 	checkCudaErrors(cudaMalloc(&d_partial_prefix_sums_per_radix, sizeof(int) * NUM_RADICES));
 	int *d_sorted_cellID;
 	checkCudaErrors(cudaMalloc(&d_sorted_cellID, ARRAY_SIZE*sizeof(int)));
-	checkCudaErrors(cudaMemset(d_sorted_cellID, -1, ARRAY_SIZE*sizeof(int)));
+	checkCudaErrors(cudaMemset(d_sorted_cellID, 0, ARRAY_SIZE*sizeof(int)));
 	int *d_sorted_objectID;
 	checkCudaErrors(cudaMalloc(&d_sorted_objectID, ARRAY_SIZE*sizeof(int)));
 	checkCudaErrors(cudaMemset(d_sorted_objectID, 0, ARRAY_SIZE*sizeof(int)));
@@ -226,40 +237,40 @@ void sort(int *d_cellID, int *d_objectID){
 		int *h_d_counters;
 		h_d_counters = (int *) malloc(NUM_RADICES * NUM_BLOCKS * NUMBER_OF_GROUPS_PER_BLOCK * sizeof(int));
 		checkCudaErrors(cudaMemcpy(h_d_counters, d_counters, NUM_RADICES * NUM_BLOCKS * NUMBER_OF_GROUPS_PER_BLOCK * sizeof(int), cudaMemcpyDeviceToHost ));
-	    for (int l = 0; l < 10; ++l)
-	    {
-	    	printf("Radix: %d Values: ", l);
-	        for(int j = 0; j<NUM_BLOCKS; j++){
-	            for(int k = 0; k<NUMBER_OF_GROUPS_PER_BLOCK; k++){
-	                printf("%d,", h_d_counters[getAddress(l,j,k)]);
-	            }
-	            printf("\t");
-	        }
-	        printf("\n\n");
-	    }
+	    // for (int l = 0; l < NUM_RADICES; ++l)
+	    // {
+	    // 	printf("Radix: %d Values: ", l);
+	    //     for(int j = 0; j<NUM_BLOCKS; j++){
+	    //         for(int k = 0; k<NUMBER_OF_GROUPS_PER_BLOCK; k++){
+	    //             printf("%d,", h_d_counters[getAddress(l,j,k)]);
+	    //         }
+	    //         printf("\t");
+	    //     }
+	    //     printf("\n\n");
+	    // }
 
 		launch_kernel_phase_2(d_cellID, d_objectID, ARRAY_SIZE, i, d_counters, d_partial_prefix_sums_per_radix);
 
 		int *h_d_partial_prefix_sums_per_radix;
 		h_d_partial_prefix_sums_per_radix = (int*) malloc(sizeof(int) * NUM_RADICES);
 		checkCudaErrors(cudaMemcpy(h_d_partial_prefix_sums_per_radix, d_partial_prefix_sums_per_radix, sizeof(int) * NUM_RADICES, cudaMemcpyDeviceToHost));
-		for (int l = 0; l < 10; ++l)
+		for (int l = 0; l < NUM_RADICES; ++l)
 			printf("Radix %d: %d\n", l,h_d_partial_prefix_sums_per_radix[l]);
 
 		// int *h_d_counters;
 		h_d_counters = (int *) malloc(NUM_RADICES * NUM_BLOCKS * NUMBER_OF_GROUPS_PER_BLOCK * sizeof(int));
 		checkCudaErrors(cudaMemcpy(h_d_counters, d_counters, NUM_RADICES * NUM_BLOCKS * NUMBER_OF_GROUPS_PER_BLOCK * sizeof(int), cudaMemcpyDeviceToHost ));
-	    for (int l = 0; l < 10; ++l)
-	    {
-	    	printf("Radix: %d Values: ", l);
-	        for(int j = 0; j<NUM_BLOCKS; j++){
-	            for(int k = 0; k<NUMBER_OF_GROUPS_PER_BLOCK; k++){
-	                printf("%d,", h_d_counters[getAddress(l,j,k)]);
-	            }
-	            printf("\t");
-	        }
-	        printf("\n\n");
-	    }
+	    // for (int l = 0; l < NUM_RADICES; ++l)
+	    // {
+	    // 	printf("Radix: %d Values: ", l);
+	    //     for(int j = 0; j<NUM_BLOCKS; j++){
+	    //         for(int k = 0; k<NUMBER_OF_GROUPS_PER_BLOCK; k++){
+	    //             printf("%d,", h_d_counters[getAddress(l,j,k)]);
+	    //         }
+	    //         printf("\t");
+	    //     }
+	    //     printf("\n\n");
+	    // }
 
 		unsigned int* d_counter; cudaMalloc(&d_counter, sizeof(unsigned int)); checkCudaErrors(cudaMemset(d_counter, 0, sizeof(unsigned int)));
 		launch_kernel_phase_3(d_cellID, d_objectID, ARRAY_SIZE, i, d_counters, d_partial_prefix_sums_per_radix, d_sorted_cellID, d_sorted_objectID, d_counter);
@@ -298,27 +309,27 @@ void sort(int *d_cellID, int *d_objectID){
 
 }
 
-// int main(int argc, char const *argv[])
-// {
-// 	cudaSetDevice(0);
-// 	srand(time(NULL));
-// 	int *cellID = (int*) malloc(ARRAY_SIZE*sizeof(int));
-// 	int *objectID = (int*) malloc(ARRAY_SIZE*sizeof(int));
-// 	for (int i = 0; i < ARRAY_SIZE; ++i)
-// 	{
-// 		cellID[i] = i%10;
-// 		objectID[i] = i;
-// 	}
-// 	int * d_cellID, *d_objectID;
-// 	checkCudaErrors(cudaMalloc(&d_cellID, ARRAY_SIZE*sizeof(int)));
-// 	checkCudaErrors(cudaMalloc(&d_objectID, ARRAY_SIZE*sizeof(int)));
-// 	checkCudaErrors(cudaMemcpy(d_cellID, cellID, ARRAY_SIZE*sizeof(int),cudaMemcpyHostToDevice));
-// 	checkCudaErrors(cudaMemcpy(d_objectID, objectID, ARRAY_SIZE*sizeof(int), cudaMemcpyHostToDevice));
-// 	sort(d_cellID, d_objectID);
-// 	// for (int i = 0; i < ARRAY_SIZE; ++i)
-// 	// {
-// 	// 	cellID[i] = i;
-// 	// 	objectID[i] = ARRAY_SIZE - i;
-// 	// }
-// 	return 0;
-// }
+int main(int argc, char const *argv[])
+{
+	cudaSetDevice(0);
+	srand(time(NULL));
+	int *cellID = (int*) malloc(ARRAY_SIZE*sizeof(int));
+	int *objectID = (int*) malloc(ARRAY_SIZE*sizeof(int));
+	for (int i = 0; i < ARRAY_SIZE; ++i)
+	{
+		cellID[i] = i;
+		objectID[i] = i;
+	}
+	int * d_cellID, *d_objectID;
+	checkCudaErrors(cudaMalloc(&d_cellID, ARRAY_SIZE*sizeof(int)));
+	checkCudaErrors(cudaMalloc(&d_objectID, ARRAY_SIZE*sizeof(int)));
+	checkCudaErrors(cudaMemcpy(d_cellID, cellID, ARRAY_SIZE*sizeof(int),cudaMemcpyHostToDevice));
+	checkCudaErrors(cudaMemcpy(d_objectID, objectID, ARRAY_SIZE*sizeof(int), cudaMemcpyHostToDevice));
+	sort(d_cellID, d_objectID);
+	// for (int i = 0; i < ARRAY_SIZE; ++i)
+	// {
+	// 	cellID[i] = i;
+	// 	objectID[i] = ARRAY_SIZE - i;
+	// }
+	return 0;
+}
