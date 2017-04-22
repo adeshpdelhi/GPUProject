@@ -15,7 +15,7 @@ void launch_kernel(float4 *pos, Object* objects, float time, int n_vertices, int
     dim3 block(BLOCK_DIM,1);
     find_CellID<<< grid, block>>>(objects, D_CELLIDS, D_OBJECT_IDS, CELL_SIZE);
     
-    sort(D_CELLIDS, D_OBJECT_IDS);
+    sort(D_CELLIDS, D_OBJECT_IDS, 8*OBJECT_COUNT);
 
     // bool *d_result, h_result;
     // cudaMalloc((void**)&d_result, sizeof(bool));
