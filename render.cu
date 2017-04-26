@@ -5,7 +5,7 @@
 #include "broadphase.cu"
 #include "gjk.cu"
 #include "sort.cu"
-#include "pcs.cu"
+// #include "pcs.cu"
 
 void launch_kernel(float4 *pos, Object* objects, float time, int n_vertices, int *D_CELLIDS, int *D_OBJECT_IDS)
 {
