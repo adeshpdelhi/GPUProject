@@ -1,3 +1,30 @@
+TODO:
+
+
+
+
+
+OPTIMiZATTIONS:
+1. load data and compute info like max bounding length and centroid of each object in parallel. (parallel read and calculate)
+2. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 try - all instances of same template in one IBO
 	- instance rendering https://learnopengl.com/#!Advanced-OpenGL/Instancing
 
