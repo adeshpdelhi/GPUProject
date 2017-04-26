@@ -58,7 +58,6 @@ __device__ int getObjectId(int index, Object* d_objects){
         {
             return i;
         }
-
     }
     return -1;
 }

@@ -11,23 +11,44 @@ void launch_kernel(float4 *pos, Object* objects, float time, int n_vertices, int
     // execute the kernel
     // gridDim = number of Blocks  
     int gridDim = ceil((float)OBJECT_COUNT/BLOCK_DIM);
-    dim3 grid(gridDim,1);
-    dim3 block(BLOCK_DIM,1);
-    find_CellID<<< grid, block>>>(objects, D_CELLIDS, D_OBJECT_IDS, CELL_SIZE);
+    // dim3 grid(gridDim,1);
+    // dim3 block(OBJECT_COUNT,1);
+    // printf("CELLSIZE: %f\n", CELL_SIZE);
+    // find_CellID<<< grid, block>>>(objects, D_CELLIDS, D_OBJECT_IDS, CELL_SIZE);
     
-    sort(D_CELLIDS, D_OBJECT_IDS);
+    // int *h_cellId = (int*)malloc(sizeof(int)*8*OBJECT_COUNT);
+    // cudaMemcpy(h_cellId, D_CELLIDS, sizeof(int)*8*OBJECT_COUNT, cudaMemcpyDeviceToHost);
+    // int *h_objectId = (int*)malloc(sizeof(int)*8*OBJECT_COUNT);
+    // cudaMemcpy(h_objectId, D_OBJECT_IDS, sizeof(int)*8*OBJECT_COUNT, cudaMemcpyDeviceToHost);
+    
+    // for(int i = 0; i < 8*OBJECT_COUNT; i++){
+    //     printf("i : %d , CELLID = [%d], ObjectId: [%d]\n", i, h_cellId[i],h_objectId[i]);
+    // }
+    // printf("\n");
+    // sort(D_CELLIDS, D_OBJECT_IDS, 8*OBJECT_COUNT);
 
-    // bool *d_result, h_result;
-    // cudaMalloc((void**)&d_result, sizeof(bool));
-    // gjk<<< 1 , 1>>>(pos, objects, 0, 1, d_result);
-    // // printf("result gjk : %d\n", result );
-    // cudaMemcpy(&h_result, d_result,sizeof(bool), cudaMemcpyDeviceToHost);
-    // printf("%d\n", h_result );
+    bool *d_result, h_result;
+    cudaMalloc((void**)&d_result, sizeof(bool));
+    gjk<<< 1 , 1>>>(pos, objects, 0, 1, d_result);
+    // printf("result gjk : %d\n", result );
+    cudaMemcpy(&h_result, d_result,sizeof(bool), cudaMemcpyDeviceToHost);
+    printf("%d\n", h_result );
+    if(h_result){
+        printf("collision detected between objectsID - 0, 1\n");
+    }
+    cudaFree(d_result);
 
     gridDim = ceil((float)n_vertices/BLOCK_DIM);
     dim3 grid1(gridDim,1);
     dim3 block1(BLOCK_DIM,1);
     run_vbo_kernel<<< grid1, block1>>>(pos, objects, time);
+
+    Object *h_obj = (Object*)malloc(sizeof(Object)*OBJECT_COUNT);
+    cudaMemcpy(h_obj, objects, sizeof(Object)*OBJECT_COUNT, cudaMemcpyDeviceToHost);
+    // for(int i = 0 ; i < OBJECT_COUNT ; i++){
+    //     printf("updatedcentroid: [%f %f %f %f] \n", h_obj[i].centroid.x,h_obj[i].centroid.y,h_obj[i].centroid.z,h_obj[i].centroid.w );
+    // }
+    printf("\n\n");    
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -194,10 +215,11 @@ void createVBOAndIBO(GLuint *vbo, GLuint *ibo, struct cudaGraphicsResource **vbo
         bool res = loadOBJ(std::string("./Objects/"+objectsToLoad[i]+".obj").c_str(), tempvertices, tempIndices);
         assert(res);
         templates.insert(Template(tempvertices, tempIndices,objectsToLoad[i],i));
+        // printf("ith centroid:  [ %f %f %f]\n", templates.get_ith_template(i).getCentroid().x,templates.get_ith_template(i).getCentroid().y,templates.get_ith_template(i).getCentroid().z);
     }
     
     CELL_SIZE = 1.5*(templates.getMaximumBoundingBox());
-
+    printf("CELLSIZE: %f\n", CELL_SIZE);
     for (int i = 0; i < OBJECT_COUNT; ++i)
     {
         OBJECTS.insert(i%2);        
@@ -229,6 +251,12 @@ void createVBOAndIBO(GLuint *vbo, GLuint *ibo, struct cudaGraphicsResource **vbo
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
 
+    // for(int i = 0; i < OBJECT_COUNT; i++){
+    //     printf("i: %d - templateId - %d, startIndex: %d, n_vertices: %d, centroid L [%f, %f, %f, %f]\n", 
+    //         i, OBJECTS.objs[i].template_id,OBJECTS.objs[i].start_index,OBJECTS.objs[i].n_vertices, OBJECTS.objs[i].centroid.x, 
+    //         OBJECTS.objs[i].centroid.y, OBJECTS.objs[i].centroid.z, OBJECTS.objs[i].centroid.w );
+    //     // printf("Bounding Volume  = [ \n");
+    // }
     checkCudaErrors(cudaMalloc(&D_OBJECTS, sizeof(Object)*OBJECT_COUNT));
     checkCudaErrors(cudaMemcpy(D_OBJECTS, OBJECTS.objs, sizeof(Object)*OBJECT_COUNT, cudaMemcpyHostToDevice));
 
@@ -236,7 +264,7 @@ void createVBOAndIBO(GLuint *vbo, GLuint *ibo, struct cudaGraphicsResource **vbo
     checkCudaErrors(cudaMalloc(&D_OBJECT_IDS, sizeof(int)*8*OBJECT_COUNT));
 
     // checkCudaErrors(cudaMemcpy(D_OBJECTS, OBJECTS.objs, sizeof(Object)*OBJECT_COUNT, cudaMemcpyHostToDevice));
-
+    // exit(0);
     
     SDK_CHECK_ERROR_GL();
 }

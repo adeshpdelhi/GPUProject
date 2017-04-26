@@ -36,12 +36,19 @@ private:
 public:
 	Template(std::vector<glm::vec3> v, std::vector<unsigned int> f, std::string n, int id){
 		vertices.assign(v.begin(), v.end())	;
+		// for(int i = 0; i < v.size();i++){
+		// 	printf("loaded vertices[%d]: [%f %f %f]\n",i , v[i].x, v[i].y, v[i].z );
+		// }
+		// for(int i = 0; i < vertices.size();i++){
+		// 	printf("stored vertices[%d]: [%f %f %f]\n",i , vertices[i].x, vertices[i].y, vertices[i].z );
+		// }
 		triangulatedFaces.assign(f.begin(), f.end());
 		name = n;
 		template_id = id;
 		n_vertices = vertices.size();
 		find_max_Distance_Along_XYZ();
 		findCentroid();
+		// printf("Constructor - Centroid: [%f %f %f]\n", centroid.x, centroid.y, centroid.z);
 	}
 	
 	std::vector<glm::vec3> getVertices(){
@@ -97,14 +104,20 @@ void Template::find_max_Distance_Along_XYZ(){
 	}
 	findBoundingVolume(maxX, minX, maxY, minY, maxZ, minZ);
 	maxDistanceAlongXYZ = max(maxX-minX, max(maxY-minY, maxZ - minZ));
+	// printf("get_max_Distance_Along_XYZ : %f \n", maxDistanceAlongXYZ);
 }
 
 void Template::findCentroid(){
+	// printf("Finding Centroid\n");
 	for(int i = 0; i < n_vertices; i++){
-		centroid.x += (vertices[i].x/n_vertices);
-		centroid.y += (vertices[i].y/n_vertices);
-		centroid.z += (vertices[i].z/n_vertices);	
+		centroid.x += (vertices[i].x);
+		centroid.y += (vertices[i].y);
+		centroid.z += (vertices[i].z);	
 	}
+	centroid.x /= n_vertices;
+	centroid.y /= n_vertices;
+	centroid.z /= n_vertices;
+	// printf("centroid: [%f %f %f ]\n",centroid.x,centroid.y, centroid.z );
 }
 
 void Template::findBoundingVolume(float maxX, float minX, float maxY, float minY, float maxZ, float minZ){
@@ -138,24 +151,25 @@ public:
 	Templates(){
 		number_of_templates = 0;
 		max_Bounding_Box = INT_MIN;
-		// templates.assign(t.begin(), t.end());
+		// templates.assertsign(t.begin(), t.end());
 		// number_of_templates = templates.size();
 	}
 	void insert(Template a){
 		templates.push_back(a);
 		number_of_templates++;
 		max_Bounding_Box = max(max_Bounding_Box, a.get_max_Distance_Along_XYZ());
+		// printf("max_Bounding_Box: %f\n", max_Bounding_Box);
 	}	
 	Template get_ith_template(int i){
 		assert(i < number_of_templates);
 		return templates[i];
 	}
 	int getMaximumBoundingBox(){
+		// printf("getMaximumBoundingBox: %f , %d\n", max_Bounding_Box, (int)std::ceil(max_Bounding_Box));
 		return (int)std::ceil(max_Bounding_Box);
 		// return *(std::max_element(templates.begin(), templates.end(), comp)).get_max_Distance_Along_XYZ();
 	}
 };
-
 
 float4 getRandomSpeed(){
     return make_float4(((rand()%100)-50)/MAX_SPEED,((rand()%100)-50)/MAX_SPEED,((rand()%100)-50)/MAX_SPEED,1.0f);
@@ -189,10 +203,15 @@ public:
 		// printf("speed: %f %f %f %f \n", speed.x, speed.y, speed.z, speed.w );
 
 		initial_location = getRandomInitialLocation();
+		// printf("initial_location: %f %f %f %f \n", initial_location.x, initial_location.y, initial_location.z, initial_location.w );
+
 
 		float3 c = templates.get_ith_template(template_index).getCentroid();
+		// printf("centroid_orig: %f %f %f \n", c.x, c.y, c.z );
+
 		centroid = make_float4(c.x+initial_location.x, c.y+initial_location.y, c.z+initial_location.z, 1.0f);
-		
+		// printf("centroid: %f %f %f %f \n", centroid.x, centroid.y, centroid.z, centroid.w );
+
 		bV = templates.get_ith_template(template_index).getBoundingVolume(initial_location);
 	}
 	int getTemplateId(){
@@ -220,15 +239,18 @@ void Objects::insert(int template_id){
 	std::vector<glm::vec3> v = templates.get_ith_template(template_id).getVertices();
 	std::vector<unsigned int> m = templates.get_ith_template(template_id).getFaces();
 
+	// for(int i = 0; i < v.size();i++){
+	// 	printf("loaded template vertices[%d]: [%f %f %f]\n",i , v[i].x, v[i].y, v[i].z );
+	// }
 	assert(mappings.size()+ m.size() < MAX_MAPPINGS);
 
 	int startIndex = vertices.size();
 	objs[curIdx++] = Object(template_id, startIndex);
 	// objs.push_back(Object(id, startIndex, startIndex+v.size()));
 	for (int i = 0; i < v.size(); i++){
-		vertices.push_back(make_float4(v[i].x+objs[i].initial_location.x,
-			v[i].y+objs[i].initial_location.y,
-			v[i].z+objs[i].initial_location.z, 1.0f));
+		vertices.push_back(make_float4(v[i].x+objs[curIdx-1].initial_location.x,
+			v[i].y+objs[curIdx-1].initial_location.y,
+			v[i].z+objs[curIdx-1].initial_location.z, 1.0f));
 	}
 	// vertices.insert(vertices.end(), v.begin(), v.end() );
 	
