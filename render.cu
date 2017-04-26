@@ -5,6 +5,7 @@
 #include "broadphase.cu"
 #include "gjk.cu"
 #include "sort.cu"
+#include "pcs.cu"
 
 void launch_kernel(float4 *pos, Object* objects, float time, int n_vertices, int *D_CELLIDS, int *D_OBJECT_IDS)
 {
@@ -16,6 +17,13 @@ void launch_kernel(float4 *pos, Object* objects, float time, int n_vertices, int
     find_CellID<<< grid, block>>>(objects, D_CELLIDS, D_OBJECT_IDS, CELL_SIZE);
     
     sort(D_CELLIDS, D_OBJECT_IDS, 8*OBJECT_COUNT);
+
+    int n_blocks = 16, n_threads_per_block = 192;
+    int n_threads = n_blocks * n_threads_per_block;
+    dim3 grid2(n_blocks);
+    dim3 block2(n_threads_per_block);
+    __device__ int partition_size = float(8*OBJECT_COUNT)/n_threads;
+    createPCSAndCallNarrowPhase(D_CELLIDS, D_OBJECT_IDS, partition_size, 8*OBJECT_COUNT);
 
     // bool *d_result, h_result;
     // cudaMalloc((void**)&d_result, sizeof(bool));

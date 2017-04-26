@@ -76,7 +76,7 @@ clean:
 clobber: clean
 
 sort: sort.o
-	$(EXEC) $(NVCC) -g -G -Wno-deprecated-gpu-targets $(ALL_LDFLAGS) $(GENCODE_FLAGS) -o $@ $^ $(LIBRARIES)
+	$(EXEC) $(NVCC) -Wno-deprecated-gpu-targets $(ALL_LDFLAGS) $(GENCODE_FLAGS) -o $@ $^ $(LIBRARIES)
 
 sort.o: sort.cu
-	$(EXEC) $(NVCC) -g -G -Wno-deprecated-gpu-targets $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<
+	$(EXEC) $(NVCC) -Wno-deprecated-gpu-targets $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<

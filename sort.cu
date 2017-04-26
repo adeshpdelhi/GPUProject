@@ -296,6 +296,7 @@ void sort(int *d_cellID, int *d_objectID, int ARRAY_SIZE){
 
 	checkCudaErrors(cudaFree(d_sorted_cellID));
 	checkCudaErrors(cudaFree(d_sorted_objectID));
+	checkCudaErrors(cudaFree(d_partial_prefix_sums_per_radix));
 	checkCudaErrors(cudaFree(d_counters));
 
 }
@@ -347,6 +348,9 @@ void sort(int *d_cellID, int *d_objectID, int ARRAY_SIZE){
 // 	h_d_sorted_objectID = (int *)malloc( ARRAY_SIZE* sizeof(int));
 // 	checkCudaErrors(cudaMemcpy(h_d_sorted_objectID, d_objectID, ARRAY_SIZE*sizeof(int), cudaMemcpyDeviceToHost));
 
+
+// 	std::clock_t starttime = std::clock();
+
 // 	struct pair *pairs = (struct pair*)malloc(ARRAY_SIZE * sizeof(struct pair));
 // 	if(pairs == NULL)
 // 	{
@@ -361,6 +365,10 @@ void sort(int *d_cellID, int *d_objectID, int ARRAY_SIZE){
 
 // 	//Sort and test
 // 	qsort(pairs, ARRAY_SIZE, sizeof(pair), comparator);
+
+// 	double duration = (std::clock() - starttime) / (double)CLOCKS_PER_SEC;
+// 	printf("Sorting took time %f on CPU\n", duration);
+
 // 	bool flag = true;
 // 	for (int i = 0; i < ARRAY_SIZE; ++i)
 // 	{
