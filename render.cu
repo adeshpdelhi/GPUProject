@@ -5,17 +5,17 @@
 #include "broadphase.cu"
 #include "gjk.cu"
 #include "sort.cu"
-// #include "pcs.cu"
+#include "pcs.cu"
 
 void launch_kernel(float4 *pos, Object* objects, float time, int n_vertices, int *D_CELLIDS, int *D_OBJECT_IDS)
 {
     // execute the kernel
     // gridDim = number of Blocks  
     int gridDim = ceil((float)OBJECT_COUNT/BLOCK_DIM);
-    // dim3 grid(gridDim,1);
-    // dim3 block(OBJECT_COUNT,1);
+    dim3 grid(gridDim,1);
+    dim3 block(OBJECT_COUNT,1);
     // printf("CELLSIZE: %f\n", CELL_SIZE);
-    // find_CellID<<< grid, block>>>(objects, D_CELLIDS, D_OBJECT_IDS, CELL_SIZE);
+    find_CellID<<< grid, block>>>(objects, D_CELLIDS, D_OBJECT_IDS, CELL_SIZE);
     
     // int *h_cellId = (int*)malloc(sizeof(int)*8*OBJECT_COUNT);
     // cudaMemcpy(h_cellId, D_CELLIDS, sizeof(int)*8*OBJECT_COUNT, cudaMemcpyDeviceToHost);
@@ -27,27 +27,27 @@ void launch_kernel(float4 *pos, Object* objects, float time, int n_vertices, int
     // }
     // printf("\n");
 
+
+    sort(D_CELLIDS, D_OBJECT_IDS, 8*OBJECT_COUNT);
     
-    // sort(D_CELLIDS, D_OBJECT_IDS, 8*OBJECT_COUNT);
-    
-    // int n_blocks = 16, n_threads_per_block = 192;
-    // int n_threads = n_blocks * n_threads_per_block;
-    // dim3 grid2(n_blocks);
-    // dim3 block2(n_threads_per_block);
-    // __device__ int partition_size = float(8*OBJECT_COUNT)/n_threads;
-    // createPCSAndCallNarrowPhase(D_CELLIDS, D_OBJECT_IDS, partition_size, 8*OBJECT_COUNT);
+    int n_blocks = GRID_DIM_PCS, n_threads_per_block = BLOCK_DIM_PCS;
+    int n_threads = n_blocks * n_threads_per_block;
+    dim3 grid2(n_blocks);
+    dim3 block2(n_threads_per_block);
+    int partition_size = ceil(float(8*OBJECT_COUNT)/n_threads);
+    createPCSAndCallNarrowPhase<<<grid2, block2>>>(D_CELLIDS, D_OBJECT_IDS, partition_size, 8*OBJECT_COUNT, pos, objects);
 
 
-    bool *d_result, h_result;
-    cudaMalloc((void**)&d_result, sizeof(bool));
-    gjk<<< 1 , 1>>>(pos, objects, 0, 1, d_result);
-    // printf("result gjk : %d\n", result );
-    cudaMemcpy(&h_result, d_result,sizeof(bool), cudaMemcpyDeviceToHost);
-    printf("%d\n", h_result );
-    if(h_result){
-        printf("collision detected between objectsID - 0, 1\n");
-    }
-    cudaFree(d_result);
+    // bool *d_result, h_result;
+    // cudaMalloc((void**)&d_result, sizeof(bool));
+    // gjk<<< 1 , 1>>>(pos, objects, 0, 1, d_result);
+    // // printf("result gjk : %d\n", result );
+    // cudaMemcpy(&h_result, d_result,sizeof(bool), cudaMemcpyDeviceToHost);
+    // printf("%d\n", h_result );
+    // if(h_result){
+    //     printf("collision detected between objectsID - 0, 1\n");
+    // }
+    // cudaFree(d_result);
 
     gridDim = ceil((float)n_vertices/BLOCK_DIM);
     dim3 grid1(gridDim,1);
@@ -59,7 +59,8 @@ void launch_kernel(float4 *pos, Object* objects, float time, int n_vertices, int
     // for(int i = 0 ; i < OBJECT_COUNT ; i++){
     //     printf("updatedcentroid: [%f %f %f %f] \n", h_obj[i].centroid.x,h_obj[i].centroid.y,h_obj[i].centroid.z,h_obj[i].centroid.w );
     // }
-    printf("\n\n");    
+    // printf("\n\n"); 
+    cudaDeviceSynchronize();   
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -49,4 +49,6 @@ search about dynamic parallelism for finding phantom cell locations and support 
 use thrust vector for simplex pts
 https://www.ntu.edu.sg/home/ehchua/programming/opengl/CG_BasicsTheory.html
 
-shift global variables in kernel parameter to constant, if they are not already cached?
+adesh : shift global variables in kernel parameter to constant, if they are not already cached?
+
+adesh : do memory coalescing in PCS when loading into shared memory

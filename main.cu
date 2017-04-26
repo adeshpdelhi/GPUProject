@@ -7,12 +7,14 @@
 int main(int argc, char **argv)
 {
     host_pos = (float4 *)malloc(MAX_MAPPINGS*sizeof(float4));
+
     if(host_pos == NULL){
         printf("Error: Unable to allocate mapping memory on host.\n");
         exit(-1);
     }
     srand((int)time(NULL));
     char *ref_file = NULL;
+    // cudaDeviceSetLimit(cudaLimitPrintfFifoSize, 1e10);
 
     pArgc = &argc;
     pArgv = argv;

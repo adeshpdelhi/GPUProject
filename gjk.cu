@@ -121,7 +121,7 @@ __device__ bool containsOrigin(float3 simplex[], float3 *direction){
 // 	return make_float3(a.x/norm, a.y/norm, a.z/norm);
 // }
 
-__global__ void gjk(float4 *all_vertices, Object *objects,  int objectId1, int objectId2, bool *result){
+__device__ bool gjk(float4 *all_vertices, Object *objects,  int objectId1, int objectId2){
 
 	int size1 = objects[objectId1].n_vertices;
 	int start_index_1 = objects[objectId1].start_index;
@@ -181,14 +181,12 @@ __global__ void gjk(float4 *all_vertices, Object *objects,  int objectId1, int o
 				
 		if(dot(simplex[3], direction ) <= 0 ){
 			// printf("whaaaaaaaaaat\n");
-			*(result) =  false;
-			return;
+			return false;
 		}
 		else{
 			if(containsOrigin(simplex, &direction)){
 				// printf("collision detected :D\n");
-				*(result) = true;
-				return;
+				return true;
 			}
 		}
 		// ABxAC ; AB - B-A , AC - C-A

@@ -62,16 +62,16 @@ build: main
 # 	$(EXEC) $(NVCC) $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<	
 
 main.o: main.cu object.h render.h
-	$(EXEC) $(NVCC) $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<
+	$(EXEC) $(NVCC) -Wno-deprecated-gpu-targets $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<
 
 main: main.o
-	$(EXEC) $(NVCC) $(ALL_LDFLAGS) $(GENCODE_FLAGS) -o $@ $^ $(LIBRARIES)
+	$(EXEC) $(NVCC) -Wno-deprecated-gpu-targets $(ALL_LDFLAGS) $(GENCODE_FLAGS) -o $@ $^ $(LIBRARIES)
 	
 run: build
 	$(EXEC) ./main
 
 clean:
-	rm -f main main.o render.o sort sort.o
+	rm -f main main.o render.o sort sort.o pcs pcs.o
 
 clobber: clean
 
@@ -79,4 +79,10 @@ sort: sort.o
 	$(EXEC) $(NVCC) -Wno-deprecated-gpu-targets $(ALL_LDFLAGS) $(GENCODE_FLAGS) -o $@ $^ $(LIBRARIES)
 
 sort.o: sort.cu
+	$(EXEC) $(NVCC) -Wno-deprecated-gpu-targets $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<
+
+pcs: pcs.o
+	$(EXEC) $(NVCC) -Wno-deprecated-gpu-targets $(ALL_LDFLAGS) $(GENCODE_FLAGS) -o $@ $^ $(LIBRARIES)
+
+pcs.o: pcs.cu
 	$(EXEC) $(NVCC) -Wno-deprecated-gpu-targets $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<
