@@ -4,9 +4,6 @@
 #include <helper_cuda.h>
 // #include "gjk.cu"
 
-#define BLOCK_DIM_PCS 192
-#define GRID_DIM_PCS 16
-
 __global__ void createPCSAndCallNarrowPhase(int * d_cellID, int *d_objectID, int partition_size, int total_size, float4 *pos, Object *objects){
 	/* Both start and end are inclusive*/
 
@@ -67,11 +64,10 @@ __global__ void createPCSAndCallNarrowPhase(int * d_cellID, int *d_objectID, int
 		if(d_cellID[i] % 2 == 0){
 			/* Home cell*/
 			for (int j = i + 1; j <= index_second_transition; j++){
-				if(d_cellID[j] % 2 == 1 && d_objectID[i] != d_objectID[j]){
+				if(d_cellID[j] % 2 == 1 && d_objectID[i] != d_objectID[j] && !(d_objectID[j] == d_objectID[j - 1]) ){
 					/* Non home cell found*/
-					bool result = gjk(pos, objects, d_objectID[i], d_objectID[j]);
-				    printf("result gjk : (%d, %d): %d\n", d_objectID[i], d_objectID[j], result );
-
+					gjk<<<1, 1>>>(pos, objects, d_objectID[i], d_objectID[j]);
+				    // printf("result gjk : (%d, %d): %d\n", d_objectID[i], d_objectID[j], result );
 				}
 			}
 		}

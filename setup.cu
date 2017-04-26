@@ -13,7 +13,7 @@ const unsigned int mesh_height   = 256;
 int mouse_old_x, mouse_old_y;
 int mouse_buttons = 0;
 float rotate_x = 0.0, rotate_y = 0.0;
-float translate_z = -3.0;
+float translate_z = -12.0;
 
 ///////////////////////////////////////////////////////////////////////////////
 //! Initialize GL
@@ -50,7 +50,7 @@ bool initGL(int *argc, char **argv)
     glLoadIdentity();
     // gluPerspective(60.0, 10.0, 10.0, 20.0);
 
-    gluPerspective(60.0, (GLfloat)window_width / (GLfloat) window_height, 0.1, 10.0);
+    gluPerspective(90.0, (GLfloat)window_width / (GLfloat) window_height, 0.1, 1000.0);
 
     SDK_CHECK_ERROR_GL();
 

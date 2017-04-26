@@ -7,16 +7,15 @@
 #include "sort.cu"
 #include "pcs.cu"
 
-void launch_kernel(float4 *pos, Object* objects, float time, int n_vertices, int *D_CELLIDS, int *D_OBJECT_IDS)
+void launch_kernel(float4 *pos, Object* objects, float time, int n_vertices,
+ int *D_CELLIDS, int *D_OBJECT_IDS, int *D_OBJ_IDS)
 {
     // execute the kernel
     // gridDim = number of Blocks  
     int gridDim = ceil((float)OBJECT_COUNT/BLOCK_DIM);
     dim3 grid(gridDim,1);
     dim3 block(OBJECT_COUNT,1);
-    // printf("CELLSIZE: %f\n", CELL_SIZE);
     find_CellID<<< grid, block>>>(objects, D_CELLIDS, D_OBJECT_IDS, CELL_SIZE);
-    
     // int *h_cellId = (int*)malloc(sizeof(int)*8*OBJECT_COUNT);
     // cudaMemcpy(h_cellId, D_CELLIDS, sizeof(int)*8*OBJECT_COUNT, cudaMemcpyDeviceToHost);
     // int *h_objectId = (int*)malloc(sizeof(int)*8*OBJECT_COUNT);
@@ -27,16 +26,20 @@ void launch_kernel(float4 *pos, Object* objects, float time, int n_vertices, int
     // }
     // printf("\n");
 
-
     sort(D_CELLIDS, D_OBJECT_IDS, 8*OBJECT_COUNT);
-    
-    int n_blocks = GRID_DIM_PCS, n_threads_per_block = BLOCK_DIM_PCS;
+
+    // printf("Sorted!!!\n");
+    // int n_blocks = ceil(float(8*OBJECT_COUNT)/BLOCK_DIM_PCS), n_threads_per_block = BLOCK_DIM_PCS;
+    int n_blocks = 16, n_threads_per_block = BLOCK_DIM_PCS;
+
     int n_threads = n_blocks * n_threads_per_block;
     dim3 grid2(n_blocks);
     dim3 block2(n_threads_per_block);
     int partition_size = ceil(float(8*OBJECT_COUNT)/n_threads);
-    createPCSAndCallNarrowPhase<<<grid2, block2>>>(D_CELLIDS, D_OBJECT_IDS, partition_size, 8*OBJECT_COUNT, pos, objects);
-
+    
+    createPCSAndCallNarrowPhase<<<grid2, block2>>>(D_CELLIDS, D_OBJECT_IDS, 
+        partition_size, 8*OBJECT_COUNT, pos, objects);
+    // printf("PCS created!\n");
 
     // bool *d_result, h_result;
     // cudaMalloc((void**)&d_result, sizeof(bool));
@@ -52,7 +55,7 @@ void launch_kernel(float4 *pos, Object* objects, float time, int n_vertices, int
     gridDim = ceil((float)n_vertices/BLOCK_DIM);
     dim3 grid1(gridDim,1);
     dim3 block1(BLOCK_DIM,1);
-    run_vbo_kernel<<< grid1, block1>>>(pos, objects, time);
+    run_vbo_kernel<<< grid1, block1>>>(pos, objects, time, D_OBJ_IDS, n_vertices);
 
     Object *h_obj = (Object*)malloc(sizeof(Object)*OBJECT_COUNT);
     cudaMemcpy(h_obj, objects, sizeof(Object)*OBJECT_COUNT, cudaMemcpyDeviceToHost);
@@ -60,7 +63,8 @@ void launch_kernel(float4 *pos, Object* objects, float time, int n_vertices, int
     //     printf("updatedcentroid: [%f %f %f %f] \n", h_obj[i].centroid.x,h_obj[i].centroid.y,h_obj[i].centroid.z,h_obj[i].centroid.w );
     // }
     // printf("\n\n"); 
-    cudaDeviceSynchronize();   
+    // checkCudaErrors(cudaDeviceSynchronize());   
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -107,7 +111,6 @@ void display()
     sdkStopTimer(&timer);
     computeFPS();
 }
-
 
 void computeFPS()
 {
@@ -209,7 +212,8 @@ void runCuda(struct cudaGraphicsResource **vbo_resource)
     size_t num_bytes;
     checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void **)&d_ptr, &num_bytes, *vbo_resource));
     // printf("CUDA mapped VBO: May access %ld bytes\n", num_bytes);
-    launch_kernel(d_ptr, D_OBJECTS, g_fAnim, OBJECTS.vertices.size(), D_CELLIDS, D_OBJECT_IDS);    
+    launch_kernel(d_ptr, D_OBJECTS, g_fAnim, OBJECTS.vertices.size(),
+     D_CELLIDS, D_OBJECT_IDS, D_OBJ_IDS);    
     // unmap buffer object
     checkCudaErrors(cudaGraphicsUnmapResources(1, vbo_resource, 0));
 }
@@ -234,7 +238,7 @@ void createVBOAndIBO(GLuint *vbo, GLuint *ibo, struct cudaGraphicsResource **vbo
     printf("CELLSIZE: %f\n", CELL_SIZE);
     for (int i = 0; i < OBJECT_COUNT; ++i)
     {
-        OBJECTS.insert(i%2);        
+        OBJECTS.insert(i%2,i);        
     }
     printf("Size of vertices = %d\n", OBJECTS.vertices.size());
     printf("Size of mappings = %d\n", OBJECTS.mappings.size());
@@ -247,7 +251,7 @@ void createVBOAndIBO(GLuint *vbo, GLuint *ibo, struct cudaGraphicsResource **vbo
     // initialize buffer object
     glBufferData(GL_ARRAY_BUFFER, OBJECTS.vertices.size()*sizeof(float4), &OBJECTS.vertices[0], GL_DYNAMIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
-    printf("Object allocated in OpenGL\n");
+    printf("Object allocated in OpenGL ... VBO created!! \n");
 
     checkCudaErrors(cudaGraphicsGLRegisterBuffer(vbo_res, *vbo, vbo_res_flags));
 
@@ -262,6 +266,7 @@ void createVBOAndIBO(GLuint *vbo, GLuint *ibo, struct cudaGraphicsResource **vbo
     // glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
+    printf("IBO Created!!\n");
 
     // for(int i = 0; i < OBJECT_COUNT; i++){
     //     printf("i: %d - templateId - %d, startIndex: %d, n_vertices: %d, centroid L [%f, %f, %f, %f]\n", 
@@ -271,9 +276,13 @@ void createVBOAndIBO(GLuint *vbo, GLuint *ibo, struct cudaGraphicsResource **vbo
     // }
     checkCudaErrors(cudaMalloc(&D_OBJECTS, sizeof(Object)*OBJECT_COUNT));
     checkCudaErrors(cudaMemcpy(D_OBJECTS, OBJECTS.objs, sizeof(Object)*OBJECT_COUNT, cudaMemcpyHostToDevice));
+    
+    checkCudaErrors(cudaMalloc((void**)&D_OBJ_IDS, sizeof(int)*OBJECTS.vertices.size()));
+    checkCudaErrors(cudaMemcpy(D_OBJ_IDS, &OBJECTS.Obj_IDS[0], sizeof(int)*OBJECTS.vertices.size(), cudaMemcpyHostToDevice));
 
     checkCudaErrors(cudaMalloc(&D_CELLIDS, sizeof(int)*8*OBJECT_COUNT));
     checkCudaErrors(cudaMalloc(&D_OBJECT_IDS, sizeof(int)*8*OBJECT_COUNT));
+    printf("ObjectId and cellId allocated on GPU!!!\n");
 
     // checkCudaErrors(cudaMemcpy(D_OBJECTS, OBJECTS.objs, sizeof(Object)*OBJECT_COUNT, cudaMemcpyHostToDevice));
     // exit(0);
@@ -336,7 +345,7 @@ void runAutoTest(int devID, char **argv, char *ref_file)
     void *imageData = malloc(mesh_width*mesh_height*sizeof(float));
 
     // execute the kernel
-    launch_kernel((float4 *)d_vbo_buffer, OBJECTS.objs, g_fAnim, 10, NULL, NULL);
+    launch_kernel((float4 *)d_vbo_buffer, OBJECTS.objs, g_fAnim, 10, NULL, NULL, NULL);
 
     cudaDeviceSynchronize();
     getLastCudaError("launch_kernel failed");
@@ -454,6 +463,8 @@ void deleteVBOAndIBO(GLuint *vbo, GLuint *ibo, struct cudaGraphicsResource *vbo_
     checkCudaErrors(cudaFree(D_OBJECTS));
     checkCudaErrors(cudaFree(D_CELLIDS));
     checkCudaErrors(cudaFree(D_OBJECT_IDS));
+    checkCudaErrors(cudaFree(D_OBJ_IDS));
+
 
     *vbo = 0;
     *ibo = 0;

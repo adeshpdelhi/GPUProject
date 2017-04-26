@@ -1,11 +1,15 @@
 #include "object.h"
 
-__global__ void run_vbo_kernel(float4 *pos, Object* d_objects, float time)
+__global__ void run_vbo_kernel(float4 *pos, Object* d_objects, float time,int* OBJ_IDS, int vert_size)
 {
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
-    int object_id = getObjectId(idx, d_objects);
-    if(object_id == -1)
-        return;
+    // int object_id = getObjectId(idx, d_objects);
+    if(idx >= vert_size){
+    	return;
+    }
+    int object_id = OBJ_IDS[idx];
+    // if(object_id == -1)
+    //     return;
     float4 speed = d_objects[object_id].speed;
     if(idx == d_objects[object_id].start_index){
     	d_objects[object_id].centroid = make_float4(d_objects[object_id].centroid.x + speed.x*time,

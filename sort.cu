@@ -293,7 +293,7 @@ void sort(int *d_cellID, int *d_objectID, int ARRAY_SIZE){
 	// }
 	// free(h_d_sorted_objectID);
 	// printf("\n");
-
+	checkCudaErrors(cudaDeviceSynchronize());
 	checkCudaErrors(cudaFree(d_sorted_cellID));
 	checkCudaErrors(cudaFree(d_sorted_objectID));
 	checkCudaErrors(cudaFree(d_partial_prefix_sums_per_radix));

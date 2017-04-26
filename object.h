@@ -175,7 +175,7 @@ float4 getRandomSpeed(){
     return make_float4(((rand()%100)-50)/MAX_SPEED,((rand()%100)-50)/MAX_SPEED,((rand()%100)-50)/MAX_SPEED,1.0f);
 }
 float4 getRandomInitialLocation(){
-    return make_float4((rand()%100)/MAX_SPACE,(rand()%100)/MAX_SPACE,(rand()%100)/MAX_SPACE,1.0f);
+    return make_float4(rand()%MAX_SPACE,rand()%MAX_SPACE,rand()%MAX_SPACE,1.0f);
 }
 
 Templates templates;	
@@ -227,22 +227,21 @@ public:
 	Object *objs;
 	std::vector<float4> vertices;
     std::vector <unsigned int> mappings;
-
+    std::vector<int> Obj_IDS;
     Objects(){
     	curIdx = 0;
     	objs = (Object *)malloc(sizeof(Object)*OBJECT_COUNT);
     }
-	void insert(int template_id);
+	void insert(int template_id, int obj_id);
 };
 
-void Objects::insert(int template_id){
+void Objects::insert(int template_id, int obj_id){
 	std::vector<glm::vec3> v = templates.get_ith_template(template_id).getVertices();
 	std::vector<unsigned int> m = templates.get_ith_template(template_id).getFaces();
-
 	// for(int i = 0; i < v.size();i++){
 	// 	printf("loaded template vertices[%d]: [%f %f %f]\n",i , v[i].x, v[i].y, v[i].z );
 	// }
-	assert(mappings.size()+ m.size() < MAX_MAPPINGS);
+	// assert(mappings.size()+ m.size() < MAX_MAPPINGS);
 
 	int startIndex = vertices.size();
 	objs[curIdx++] = Object(template_id, startIndex);
@@ -251,6 +250,7 @@ void Objects::insert(int template_id){
 		vertices.push_back(make_float4(v[i].x+objs[curIdx-1].initial_location.x,
 			v[i].y+objs[curIdx-1].initial_location.y,
 			v[i].z+objs[curIdx-1].initial_location.z, 1.0f));
+		Obj_IDS.push_back(obj_id);
 	}
 	// vertices.insert(vertices.end(), v.begin(), v.end() );
 	
@@ -262,6 +262,7 @@ void Objects::insert(int template_id){
 
 Objects OBJECTS;
 Object *D_OBJECTS;
+int *D_OBJ_IDS;
 
 // std::string objectsToLoad[NUM_TEMPLATES] = {"cube","cone","sphere"}; 
 std::string objectsToLoad[NUM_TEMPLATES] = {"cube","cone"}; 
