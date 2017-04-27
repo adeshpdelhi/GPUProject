@@ -50,7 +50,7 @@ bool initGL(int *argc, char **argv)
     glLoadIdentity();
     // gluPerspective(60.0, 10.0, 10.0, 20.0);
 
-    gluPerspective(90.0, (GLfloat)window_width / (GLfloat) window_height, 0.1, 1000.0);
+    gluPerspective(90.0, (GLfloat)window_width / (GLfloat) window_height, 0.1, 1000000.0);
 
     SDK_CHECK_ERROR_GL();
 

@@ -34,10 +34,11 @@ __global__ void run_vbo_kernel(float4 *pos, Object* d_objects, float time,int* O
 }
 
 // __device__ int hash()
-__global__ void find_CellID(Object* d_objects, int *cellids, int* objectIds, float CELL_SIZE){
+__global__ void find_CellID(Object* d_objects, int *cellids, int* objectIds, float CELL_SIZE, int size){
     int X_SHIFT = 21, Y_SHIFT =11, Z_SHIFT = 1;
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
-
+    if(idx>= size)
+    	return;
 	cellids[8*idx] =  ((uint8_t)(d_objects[idx].centroid.x / CELL_SIZE) << X_SHIFT |
 							(uint8_t)(d_objects[idx].centroid.y / CELL_SIZE) << Y_SHIFT |
 							(uint8_t)(d_objects[idx].centroid.z / CELL_SIZE) << Z_SHIFT);  

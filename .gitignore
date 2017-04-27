@@ -1,6 +1,7 @@
 simpleGL
-simpleGL.o
 main
 sort
+pcs
+tester
 *.o
 a.txt

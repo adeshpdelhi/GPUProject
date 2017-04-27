@@ -1,10 +1,14 @@
 #include <stdio.h>
-#include <ctime>
+// #include <ctime>
+// #include "sort.cu"
 // #include "object.cu"
 #include <helper_cuda.h>
 // #include "gjk.cu"
+// #include "broadphase.cu"
 
-__global__ void createPCSAndCallNarrowPhase(int * d_cellID, int *d_objectID, int partition_size, int total_size, float4 *pos, Object *objects){
+__global__ void createPCSAndCallNarrowPhase(int * d_cellID, int *d_objectID, int partition_size, int total_size
+	, float4 *pos, Object *objects
+	){
 	/* Both start and end are inclusive*/
 
 	int thread_start = blockIdx.x*blockDim.x*partition_size + threadIdx.x * partition_size;
@@ -22,7 +26,7 @@ __global__ void createPCSAndCallNarrowPhase(int * d_cellID, int *d_objectID, int
 	}
 	else
 	{
-		for(int i = thread_start; i <= thread_start + partition_size; i++){
+		for(int i = thread_start; i < thread_start + partition_size; i++){
 			if( i >= total_size - 1 )
 				continue;
 			
@@ -66,6 +70,10 @@ __global__ void createPCSAndCallNarrowPhase(int * d_cellID, int *d_objectID, int
 			for (int j = i + 1; j <= index_second_transition; j++){
 				if(d_cellID[j] % 2 == 1 && d_objectID[i] != d_objectID[j] && !(d_objectID[j] == d_objectID[j - 1]) ){
 					/* Non home cell found*/
+					// if(d_objectID[i]>total_size || d_objectID[j] > total_size){
+					// 	printf("crashed \n");
+					// }
+					// printf("%d %d\n", d_objectID[i],d_objectID[j]);
 					gjk<<<1, 1>>>(pos, objects, d_objectID[i], d_objectID[j]);
 				    // printf("result gjk : (%d, %d): %d\n", d_objectID[i], d_objectID[j], result );
 				}
@@ -91,8 +99,10 @@ __global__ void createPCSAndCallNarrowPhase(int * d_cellID, int *d_objectID, int
 
 // int main(int argc, char const *argv[])
 // {
-// 	srand(time(NULL));
-// 	int OBJECT_COUNT = 3;
+// 	// srand(time(NULL));
+// 	// int BLOCK_DIM_PCS = 192;
+// 	// int OBJECT_COUNT = 3000000;
+// 	int GRID_DIM_PCS = 2048;
 // 	int ARRAY_SIZE = 8*OBJECT_COUNT;
 // 	int *cellID = (int*) malloc(ARRAY_SIZE*sizeof(int));
 // 	int *objectID = (int*) malloc(ARRAY_SIZE*sizeof(int));
@@ -127,26 +137,12 @@ __global__ void createPCSAndCallNarrowPhase(int * d_cellID, int *d_objectID, int
 // 		objectID[i] = pairs[i].objectID;
 // 	}
 
-// 	// for (int i = 0; i < ARRAY_SIZE; ++i)
-// 	// {
-// 	// 	printf("%d (%d, %d, %d),\n", i, cellID[i]>>1,objectID[i], cellID[i]%2);
-// 	// }
+// 	for (int i = 0; i < ARRAY_SIZE; ++i)
+// 	{
+// 		printf("%d (%d, %d, %d),\n", i, cellID[i]>>1,objectID[i], cellID[i]%2);
+// 	}
 
-// 	// printf("\n");
-
-// 	int * d_cellID, *d_objectID;
-// 	checkCudaErrors(cudaMalloc(&d_cellID, ARRAY_SIZE*sizeof(int)));
-// 	checkCudaErrors(cudaMalloc(&d_objectID, ARRAY_SIZE*sizeof(int)));
-// 	checkCudaErrors(cudaMemcpy(d_cellID, cellID, ARRAY_SIZE*sizeof(int),cudaMemcpyHostToDevice));
-// 	checkCudaErrors(cudaMemcpy(d_objectID, objectID, ARRAY_SIZE*sizeof(int), cudaMemcpyHostToDevice));
-	
-// 	int n_blocks = GRID_DIM_PCS, n_threads_per_block = BLOCK_DIM_PCS;
-//     int n_threads = n_blocks * n_threads_per_block;
-//     dim3 grid2(n_blocks);
-//     dim3 block2(n_threads_per_block);
-//     int partition_size = ceil(float(8*OBJECT_COUNT)/n_threads);
-//     printf("partition_size: %d\n",partition_size );
-//     createPCSAndCallNarrowPhase<<<grid2, block2>>>(d_cellID, d_objectID, partition_size, 8*OBJECT_COUNT);
+// 	printf("\n");
 
 // 	return 0;
 // }

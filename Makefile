@@ -5,7 +5,7 @@ NVCC          := $(CUDA_PATH)/bin/nvcc -ccbin $(HOST_COMPILER)
 
 TARGET_SIZE := 64
 # internal flags
-NVCCFLAGS   := -m${TARGET_SIZE} -rdc=true 
+NVCCFLAGS   := -m${TARGET_SIZE} -rdc=true -Wno-deprecated-gpu-targets
 CCFLAGS     :=
 LDFLAGS     :=
 
@@ -74,18 +74,24 @@ run: build
 	$(EXEC) ./main
 
 clean:
-	rm -f main main.o render.o sort sort.o pcs pcs.o
+	rm -f main main.o render.o sort sort.o pcs pcs.o tester tester.o
 
 clobber: clean
 
 sort: sort.o
-	$(EXEC) $(NVCC) -Wno-deprecated-gpu-targets $(ALL_LDFLAGS) $(GENCODE_FLAGS) -o $@ $^ $(LIBRARIES)
+	$(EXEC) $(NVCC) $(ALL_LDFLAGS) $(GENCODE_FLAGS) -o $@ $^ $(LIBRARIES)
 
 sort.o: sort.cu
-	$(EXEC) $(NVCC) -Wno-deprecated-gpu-targets $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<
+	$(EXEC) $(NVCC) $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<
 
 pcs: pcs.o
-	$(EXEC) $(NVCC) -Wno-deprecated-gpu-targets $(ALL_LDFLAGS) $(GENCODE_FLAGS) -o $@ $^ $(LIBRARIES)
+	$(EXEC) $(NVCC) $(ALL_LDFLAGS) $(GENCODE_FLAGS) -o $@ $^ $(LIBRARIES)
 
 pcs.o: pcs.cu
-	$(EXEC) $(NVCC) -Wno-deprecated-gpu-targets $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<
+	$(EXEC) $(NVCC) $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<
+
+tester: tester.o
+	$(EXEC) $(NVCC) $(ALL_LDFLAGS) $(GENCODE_FLAGS) -o $@ $^ $(LIBRARIES)
+
+tester.o: tester.cu
+	$(EXEC) $(NVCC) $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<

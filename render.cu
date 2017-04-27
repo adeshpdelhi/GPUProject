@@ -14,8 +14,8 @@ void launch_kernel(float4 *pos, Object* objects, float time, int n_vertices,
     // gridDim = number of Blocks  
     int gridDim = ceil((float)OBJECT_COUNT/BLOCK_DIM);
     dim3 grid(gridDim,1);
-    dim3 block(OBJECT_COUNT,1);
-    find_CellID<<< grid, block>>>(objects, D_CELLIDS, D_OBJECT_IDS, CELL_SIZE);
+    dim3 block(BLOCK_DIM,1); //was dim3 block(OBJECT_COUNT,1);
+    find_CellID<<< grid, block>>>(objects, D_CELLIDS, D_OBJECT_IDS, CELL_SIZE, OBJECT_COUNT);
     // int *h_cellId = (int*)malloc(sizeof(int)*8*OBJECT_COUNT);
     // cudaMemcpy(h_cellId, D_CELLIDS, sizeof(int)*8*OBJECT_COUNT, cudaMemcpyDeviceToHost);
     // int *h_objectId = (int*)malloc(sizeof(int)*8*OBJECT_COUNT);
@@ -57,8 +57,8 @@ void launch_kernel(float4 *pos, Object* objects, float time, int n_vertices,
     dim3 block1(BLOCK_DIM,1);
     run_vbo_kernel<<< grid1, block1>>>(pos, objects, time, D_OBJ_IDS, n_vertices);
 
-    Object *h_obj = (Object*)malloc(sizeof(Object)*OBJECT_COUNT);
-    cudaMemcpy(h_obj, objects, sizeof(Object)*OBJECT_COUNT, cudaMemcpyDeviceToHost);
+    // Object *h_obj = (Object*)malloc(sizeof(Object)*OBJECT_COUNT);
+    // cudaMemcpy(h_obj, objects, sizeof(Object)*OBJECT_COUNT, cudaMemcpyDeviceToHost);
     // for(int i = 0 ; i < OBJECT_COUNT ; i++){
     //     printf("updatedcentroid: [%f %f %f %f] \n", h_obj[i].centroid.x,h_obj[i].centroid.y,h_obj[i].centroid.z,h_obj[i].centroid.w );
     // }
@@ -347,7 +347,7 @@ void runAutoTest(int devID, char **argv, char *ref_file)
     // execute the kernel
     launch_kernel((float4 *)d_vbo_buffer, OBJECTS.objs, g_fAnim, 10, NULL, NULL, NULL);
 
-    cudaDeviceSynchronize();
+    // cudaDeviceSynchronize();
     getLastCudaError("launch_kernel failed");
 
     checkCudaErrors(cudaMemcpy(imageData, d_vbo_buffer, mesh_width*mesh_height*sizeof(float), cudaMemcpyDeviceToHost));
