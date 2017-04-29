@@ -238,7 +238,7 @@ void createVBOAndIBO(GLuint *vbo, GLuint *ibo, struct cudaGraphicsResource **vbo
     printf("CELLSIZE: %f\n", CELL_SIZE);
     for (int i = 0; i < OBJECT_COUNT; ++i)
     {
-        OBJECTS.insert(i%2,i);        
+        OBJECTS.insert(i%NUM_TEMPLATES,i);        
     }
     printf("Size of vertices = %d\n", OBJECTS.vertices.size());
     printf("Size of mappings = %d\n", OBJECTS.mappings.size());
