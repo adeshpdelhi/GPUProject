@@ -265,7 +265,8 @@ Object *D_OBJECTS;
 int *D_OBJ_IDS;
 
 // std::string objectsToLoad[NUM_TEMPLATES] = {"cube","cone","sphere"}; 
-std::string objectsToLoad[NUM_TEMPLATES] = {"cube","cone", "sphere"}; 
+// std::string objectsToLoad[NUM_TEMPLATES] = {"cube","cone", "cylinder", "sphere"}; 
+std::string objectsToLoad[NUM_TEMPLATES] = {"cube","cone"}; 
 
 
 
